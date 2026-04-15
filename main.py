@@ -8,7 +8,7 @@ app = FastAPI()
 
 @app.get("/")
 def home():
-    return {"status": "Alpha Engine is Scanning Models"}
+    return {"status": "Alpha Engine is Ready"}
 
 @app.get("/predict")
 async def predict_astrology(q: str):
@@ -17,29 +17,38 @@ async def predict_astrology(q: str):
         pc = Pinecone(api_key=os.environ.get("PINECONE_KEY"))
         index = pc.Index("astrology-knowledge")
 
-        # වැඩ කරන Embedding මොඩල් එක හොයාගැනීම
-        available_models = [m.name for m in genai.list_models() if 'embedContent' in m.supported_generation_methods]
+        # 1. වැඩ කරන මොඩල් ලැයිස්තුව ගමු
+        all_models = [m.name for m in genai.list_models()]
         
-        # අපිට අවශ්‍ය මොඩල් එක ලැයිස්තුවේ තියෙනවද බලමු
-        target_model = "models/text-embedding-004" if "models/text-embedding-004" in available_models else available_models[0]
+        # 2. Embedding මොඩල් එක තෝරාගමු
+        embed_model = "models/text-embedding-004" if "models/text-embedding-004" in all_models else "models/embedding-001"
+        
+        # 3. Generate කරන මොඩල් එක තෝරාගමු (Flash)
+        # ලැයිස්තුවේ තියෙන ඕනෑම flash මොඩල් එකක් ගමු
+        flash_models = [m for m in all_models if "gemini-1.5-flash" in m]
+        gen_model_name = flash_models[0] if flash_models else "models/gemini-pro"
 
+        # Embed Content
         embedding_res = genai.embed_content(
-            model=target_model,
+            model=embed_model,
             content=q,
-            task_type="retrieval_query" if "004" in target_model else None
+            task_type="retrieval_query" if "004" in embed_model else None
         )
         emb = embedding_res["embedding"]
 
+        # Pinecone Search
         res = index.query(vector=emb, top_k=3, include_metadata=True)
         context_text = " ".join([match['metadata'].get('text', '') for match in res['matches']])
         
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(f"දත්ත: {context_text}\nප්‍රශ්නය: {q}")
+        # Generate Response
+        model = genai.GenerativeModel(gen_model_name)
+        prompt = f"පහත සඳහන් ජෝතිෂ්‍ය දත්ත ඇසුරින් ප්‍රශ්නයට පිළිතුරු දෙන්න. දත්ත: {context_text}\nප්‍රශ්නය: {q}"
+        response = model.generate_content(prompt)
         
         return {"prediction": response.text}
         
     except Exception as e:
-        return {"prediction": f"Final technical error: {str(e)}"}
+        return {"prediction": f"Technical Update Required: {str(e)}"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
