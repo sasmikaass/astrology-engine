@@ -11,6 +11,7 @@ def home():
 
 @app.get("/predict")
 async def predict_astrology(q: str):
+    # Railway Variables වලින් Groq Key එක ලබා ගැනීම
     api_key = os.environ.get("GROQ_API_KEY")
     url = "https://api.groq.com/openai/v1/chat/completions"
     
@@ -20,15 +21,16 @@ async def predict_astrology(q: str):
     }
     
     payload = {
-        "model": "llama3-70b-8192", # ඉතාමත් බුද්ධිමත් සහ දක්ෂ මොඩල් එකක්
+        "model": "llama3-70b-8192", 
         "messages": [
             {
                 "role": "system", 
-                "content": "ඔබ දක්ෂ ලාංකීය ජෝතිෂ්‍යවේදියෙක්. ඔබ සැමවිටම ජෝතිෂ්‍ය කරුණු ඇසුරින් ඉතාමත් පැහැදිලිව සිංහලෙන් පිළිතුරු දිය යුතුය."
+                "content": "ඔබ දක්ෂ ලාංකීය ජෝතිෂ්‍යවේදියෙක්. කරුණාකර ඔබගේ පිළිතුර වචන 150කට වඩා අඩු කෙටි පිළිතුරක් ලෙස සිංහලෙන් ලබා දෙන්න. ඉතා දිගු පිළිතුරු ලබා නොදෙන්න. Telegram හි මැසේජ් ලිමිට් එකට ගැළපෙන සේ පිළිතුර සකසන්න."
             },
             {"role": "user", "content": q}
         ],
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": 800  # මැසේජ් එක ගොඩක් දිග වීම වැළැක්වීමට සීමාවක්
     }
 
     try:
@@ -39,12 +41,13 @@ async def predict_astrology(q: str):
             prediction = data["choices"][0]["message"]["content"]
             return {"prediction": prediction}
         else:
-            return {"prediction": f"Groq API Error: {data.get('error', {}).get('message', 'Unknown Error')}"}
+            error_msg = data.get('error', {}).get('message', 'Unknown Error')
+            return {"prediction": f"Groq API Error: {error_msg}"}
             
     except Exception as e:
         return {"prediction": f"Network Error: {str(e)}"}
 
 if __name__ == "__main__":
-    # Railway එකේ Port එකට ලොක් කිරීම
+    # Railway එකේ PORT එකට අනුකූලව සර්වර් එක ක්‍රියාත්මක කිරීම
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
