@@ -7,46 +7,44 @@ app = FastAPI()
 
 @app.get("/")
 def home():
-    return {"status": "Alpha Engine Diagnostics Mode"}
+    return {"status": "Alpha Engine - Groq High Speed Mode Active"}
 
 @app.get("/predict")
 async def predict_astrology(q: str):
-    api_key = os.environ.get("GEMINI_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
+    url = "https://api.groq.com/openai/v1/chat/completions"
     
-    # 1. මුලින්ම පරීක්ෂා කරමු ඔයාගේ Key එකට තියෙන මොඩල් මොනවද කියලා
-    list_url = f"https://generativelanguage.googleapis.com/v1/models?key={api_key}"
-    models_data = requests.get(list_url).json()
-    
-    # වැඩ කරන පළවෙනි මොඩල් එක තෝරාගමු
-    model_name = "models/gemini-1.5-flash" # Default
-    if "models" in models_data:
-        for m in models_data["models"]:
-            if "generateContent" in m["supportedGenerationMethods"]:
-                model_name = m["name"]
-                break
-    
-    # 2. දැන් ඒ හොයාගත්තු මොඩල් එකෙන් උත්තරය ගමු
-    predict_url = f"https://generativelanguage.googleapis.com/v1/{model_name}:generateContent?key={api_key}"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
     payload = {
-        "contents": [{"parts": [{"text": f"ජෝතිෂ්‍යවේදියෙකු ලෙස පිළිතුරු දෙන්න: {q}"}]}]
+        "model": "llama3-70b-8192", # ඉතාමත් බුද්ධිමත් සහ දක්ෂ මොඩල් එකක්
+        "messages": [
+            {
+                "role": "system", 
+                "content": "ඔබ දක්ෂ ලාංකීය ජෝතිෂ්‍යවේදියෙක්. ඔබ සැමවිටම ජෝතිෂ්‍ය කරුණු ඇසුරින් ඉතාමත් පැහැදිලිව සිංහලෙන් පිළිතුරු දිය යුතුය."
+            },
+            {"role": "user", "content": q}
+        ],
+        "temperature": 0.7
     }
 
     try:
-        response = requests.post(predict_url, json=payload)
+        response = requests.post(url, json=payload, headers=headers)
         data = response.json()
         
-        if "candidates" in data:
-            return {
-                "prediction": data["candidates"][0]["content"]["parts"][0]["text"],
-                "model_used": model_name
-            }
+        if "choices" in data:
+            prediction = data["choices"][0]["message"]["content"]
+            return {"prediction": prediction}
         else:
-            return {"prediction": f"මොඩල් එක හමු වුණා ({model_name}), නමුත් වැරැද්දක් ආවා: {data.get('error', {}).get('message')}"}
+            return {"prediction": f"Groq API Error: {data.get('error', {}).get('message', 'Unknown Error')}"}
             
     except Exception as e:
-        return {"prediction": f"සම්බන්ධතා දෝෂයකි: {str(e)}"}
+        return {"prediction": f"Network Error: {str(e)}"}
 
 if __name__ == "__main__":
+    # Railway එකේ Port එකට ලොක් කිරීම
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
