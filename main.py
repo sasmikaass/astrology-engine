@@ -1,36 +1,39 @@
-from fastapi import FastAPI
 import os
-import google.generativeai as genai
+import requests
+from fastapi import FastAPI
 import uvicorn
 
 app = FastAPI()
 
-# සර්වර් එක පටන් ගන්නකොටම එක පාරක් Configuration එක කරමු
-genai.configure(api_key=os.environ.get("GEMINI_KEY"))
-
 @app.get("/")
 def home():
-    return {"status": "Alpha Engine is Fast and Ready"}
+    return {"status": "Alpha Engine Final Bypass Active"}
 
 @app.get("/predict")
 async def predict_astrology(q: str):
+    api_key = os.environ.get("GEMINI_KEY")
+    # මෙතනදී අපි කෙලින්ම Stable v1 URL එක පාවිච්චි කරනවා
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": f"ඔබ දක්ෂ ලාංකීය ජෝතිෂ්‍යවේදියෙක් ලෙස මෙයට පිළිතුරු දෙන්න: {q}"}]
+        }]
+    }
+
     try:
-        # කෙලින්ම වඩාත් ස්ථාවර මොඩල් එකට යමු (Timeout නොවී ඉන්න)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = requests.post(url, json=payload)
+        data = response.json()
         
-        # පිළිතුර ඉක්මනින් ලබාගැනීමට stream=False (default) භාවිතා කරමු
-        response = model.generate_content(f"ජෝතිෂ්‍යවේදියෙකු ලෙස කෙටියෙන් පිළිතුරු දෙන්න: {q}")
-        
-        return {"prediction": response.text}
-        
+        # ප්‍රතිඵලය ලබා ගැනීම
+        if "candidates" in data:
+            prediction = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"prediction": prediction}
+        else:
+            return {"prediction": f"API Error: {data.get('error', {}).get('message', 'Unknown Error')}"}
+            
     except Exception as e:
-        # මොකක් හරි වැරදුනොත් පරණ version එකත් try කරමු
-        try:
-            model = genai.GenerativeModel('gemini-pro')
-            response = model.generate_content(q)
-            return {"prediction": response.text}
-        except:
-            return {"prediction": f"Error: {str(e)}"}
+        return {"prediction": f"Connection Error: {str(e)}"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
