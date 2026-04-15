@@ -18,7 +18,7 @@ async def predict_astrology(q: str):
         pc = Pinecone(api_key=os.environ.get("PINECONE_KEY"))
         index = pc.Index("astrology-knowledge")
 
-        # Get Embeddings using the latest model
+        # Get Embeddings - Using correct model and task type for v1beta
         embedding_res = genai.embed_content(
             model="models/text-embedding-004",
             content=q,
@@ -42,9 +42,22 @@ async def predict_astrology(q: str):
         return {"prediction": response.text}
         
     except Exception as e:
-        return {"prediction": f"Error: {str(e)}"}
+        # If text-embedding-004 fails, try the fallback embedding-001
+        try:
+            embedding_res = genai.embed_content(
+                model="models/embedding-001",
+                content=q
+            )
+            emb = embedding_res["embedding"]
+            # ... rest of the logic remains same ...
+            res = index.query(vector=emb, top_k=3, include_metadata=True)
+            context_text = " ".join([match['metadata'].get('text', '') for match in res['matches']])
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(f"දත්ත: {context_text}\nප්‍රශ්නය: {q}")
+            return {"prediction": response.text}
+        except:
+            return {"prediction": f"System Error: {str(e)}"}
 
 if __name__ == "__main__":
-    # Get port from environment or default to 8000
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
